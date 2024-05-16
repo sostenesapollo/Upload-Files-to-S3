@@ -8,5 +8,7 @@
     # Run script
     node index.js
 
+# It shows current percentage of upload !
+![Screenshot](demo.png)
 
 
