@@ -1,14 +1,15 @@
 const AWS = require('aws-sdk');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config()
+const progressStream = require('progress-stream');
+require('dotenv').config();
 
 let filenames = [];
 
 const files = fs.readdirSync('files');
 
 if (files.length > 0) {
-    filenames = files.map(file=>path.basename(file));
+    filenames = files.map(file => path.basename(file));
 } else {
     throw new Error('No files found in the directory.');
 }
@@ -34,28 +35,41 @@ function uploadFile(filename, directory) {
     // Path to the file you want to upload
     const filePath = path.join(directory, filename); // replace with your local file path
 
+    // Get the file size
+    const fileSize = fs.statSync(filePath).size;
+
     // Create a read stream for the file
     const fileStream = fs.createReadStream(filePath);
 
     // Handle errors from the file stream
     fileStream.on('error', (err) => {
-    console.error('File Error', err);
+        console.error('File Error', err);
     });
 
-    // Set the Body parameter of the uploadParams object
-    uploadParams.Body = fileStream;
+    // Create a progress stream
+    const progStream = progressStream({
+        length: fileSize,
+        time: 100 /* ms */
+    });
+
+    progStream.on('progress', (progress) => {
+        console.log(`Uploading ${filename}: ${Math.round(progress.percentage)}%`);
+    });
+
+    // Pipe the file stream through the progress stream to S3
+    uploadParams.Body = fileStream.pipe(progStream);
 
     // Call S3 to upload the file
     s3.upload(uploadParams, (err, data) => {
-    if (err) {
-        console.error('Error', err);
-    } else {
-        console.log('Upload Success', data.Location);
-    }
+        if (err) {
+            console.error('Error', err);
+        } else {
+            console.log('Upload Success', data.Location);
+        }
     });
 }
 
 filenames.forEach((filename) => {
-    console.log('>> Uploading>>', filename);
-    uploadFile(filename, 'files')
-})
+    console.log('>> Uploading >>', filename);
+    uploadFile(filename, 'files');
+});
